@@ -10,7 +10,8 @@ import { GovernorTimelockControl, TimelockController } from "@openzeppelin/contr
 import { ISablierLinear } from "./interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "./interfaces/ISablierDynamic.sol";
 import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
-
+// TO-DO:
+// Refactor logic
 contract SablierGovernor is
 	Governor,
 	GovernorSettings,
@@ -31,6 +32,12 @@ contract SablierGovernor is
 	ISablierLinear public immutable i_sablierLinear;
 	ISablierDynamic public immutable i_sablierDynamic;
 
+	mapping(uint256 => uint256) public lastValidLinearStreamId; // @dev proposalId => last valid streamId
+	mapping(uint256 => uint256) public lastValidDynamicStreamId; // @dev proposalId => last valid streamId
+
+	mapping(uint256 => bool) private _linearStreamUsed; // @dev streamId => used
+	mapping(uint256 => bool) private _dynamicStreamUsed; // @dev streamId => used
+
 	constructor(
 		IVotes _token,
 		TimelockController _timelock,
@@ -45,6 +52,27 @@ contract SablierGovernor is
 	{
 		i_sablierLinear = sablierLinear;
 		i_sablierDynamic = sablierDynamic;
+	}
+
+	function propose(
+		address[] memory targets,
+		uint256[] memory values,
+		bytes[] memory calldatas,
+		string memory description
+	) public virtual override(IGovernor, Governor) returns (uint256) {
+		uint256 proposalId = super.propose(
+			targets,
+			values,
+			calldatas,
+			description
+		);
+		lastValidLinearStreamId[proposalId] =
+			i_sablierLinear.nextStreamId() -
+			1;
+		lastValidDynamicStreamId[proposalId] =
+			i_sablierDynamic.nextStreamId() -
+			1;
+		return proposalId;
 	}
 
 	// The following functions are overrides required by Solidity.
@@ -97,6 +125,12 @@ contract SablierGovernor is
 		return super.proposalThreshold();
 	}
 
+	function supportsInterface(
+		bytes4 interfaceId
+	) public view override(Governor, GovernorTimelockControl) returns (bool) {
+		return super.supportsInterface(interfaceId);
+	}
+
 	function _cancel(
 		address[] memory targets,
 		uint256[] memory values,
@@ -115,12 +149,6 @@ contract SablierGovernor is
 		return super._executor();
 	}
 
-	function supportsInterface(
-		bytes4 interfaceId
-	) public view override(Governor, GovernorTimelockControl) returns (bool) {
-		return super.supportsInterface(interfaceId);
-	}
-
 	function _execute(
 		uint256 proposalId,
 		address[] memory targets,
@@ -131,6 +159,7 @@ contract SablierGovernor is
 		super._execute(proposalId, targets, values, calldatas, descriptionHash);
 	}
 
+	// _getVotes is overriden so it can include votes from Sablier streams
 	function _getVotes(
 		address account,
 		uint256 timepoint,
@@ -145,7 +174,10 @@ contract SablierGovernor is
 		uint256 regularVotes = super._getVotes(account, timepoint, params);
 		uint256 streamVotes;
 
-		StreamParams[] memory streams = abi.decode(params, (StreamParams[]));
+		(StreamParams[] memory streams, uint256 proposalId) = abi.decode(
+			params,
+			(StreamParams[], uint256)
+		);
 		if (streams.length == 0) {
 			streamVotes = 0;
 		} else {
@@ -153,13 +185,19 @@ contract SablierGovernor is
 				uint256 streamId = streams[i].streamID;
 
 				if (streams[i].streamType == StreamType.Linear) {
+					if (streamId > lastValidLinearStreamId[proposalId]) {
+						revert("Stream ID is invalid");
+					}
 					// @dev Reverts if `streamId` references a null stream.
 					LockupLinear.Stream memory stream = i_sablierLinear
 						.getStream(streamId);
 
-					// add if stream was already used for voting
+					if (_linearStreamUsed[streamId]) {
+						revert("Stream already used");
+					}
+
 					if (address(stream.asset) != address(token)) {
-						continue;
+						revert("Asset does not match token");
 					}
 
 					if (i_sablierLinear.getRecipient(streamId) != account) {
@@ -180,10 +218,12 @@ contract SablierGovernor is
 					LockupDynamic.Stream memory stream = i_sablierDynamic
 						.getStream(streamId);
 
-					// add if stream was already used for voting
-					// add last valid stream check
+					if (_dynamicStreamUsed[streamId]) {
+						revert("Stream already used");
+					}
+
 					if (address(stream.asset) != address(token)) {
-						continue;
+						revert("Asset does not match token");
 					}
 
 					if (i_sablierDynamic.getRecipient(streamId) != account) {
@@ -204,5 +244,26 @@ contract SablierGovernor is
 		}
 
 		return regularVotes + streamVotes;
+	}
+
+	function _countVote(
+		uint256 proposalId,
+		address account,
+		uint8 support,
+		uint256 weight,
+		bytes memory params
+	) internal virtual override(Governor, GovernorCountingSimple) {
+		super._countVote(proposalId, account, support, weight, params);
+		(StreamParams[] memory streams, ) = abi.decode(
+			params,
+			(StreamParams[], uint256)
+		);
+		for (uint256 i = 0; i < streams.length; i++) {
+			if (streams[i].streamType == StreamType.Linear) {
+				_linearStreamUsed[streams[i].streamID] = true;
+			} else {
+				_dynamicStreamUsed[streams[i].streamID] = true;
+			}
+		}
 	}
 }

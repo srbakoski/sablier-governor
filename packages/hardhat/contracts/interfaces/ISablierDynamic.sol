@@ -26,4 +26,7 @@ interface ISablierDynamic {
 	function withdrawableAmountOf(
 		uint256 streamId
 	) external view returns (uint128 withdrawableAmount);
+
+	/// @notice Counter for stream ids, used in the create functions.
+	function nextStreamId() external view returns (uint256);
 }
