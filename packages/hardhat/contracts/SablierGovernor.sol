@@ -10,8 +10,6 @@ import { GovernorTimelockControl, TimelockController } from "@openzeppelin/contr
 import { ISablierLinear } from "./interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "./interfaces/ISablierDynamic.sol";
 import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
-// TO-DO:
-// Documentation
 
 /// @title SablierGovernor
 contract SablierGovernor is
