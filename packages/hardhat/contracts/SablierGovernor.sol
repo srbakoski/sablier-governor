@@ -13,7 +13,7 @@ import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataType
 // TO-DO:
 // Documentation
 
-// @title SablierGovernor
+/// @title SablierGovernor
 contract SablierGovernor is
 	Governor,
 	GovernorSettings,
