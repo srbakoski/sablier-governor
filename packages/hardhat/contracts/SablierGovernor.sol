@@ -11,8 +11,9 @@ import { ISablierLinear } from "./interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "./interfaces/ISablierDynamic.sol";
 import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
 // TO-DO:
-// NatSpec
 // Documentation
+
+// @title SablierGovernor
 contract SablierGovernor is
 	Governor,
 	GovernorSettings,
@@ -55,6 +56,9 @@ contract SablierGovernor is
 		i_sablierDynamic = sablierDynamic;
 	}
 
+	/// @dev Propose a new proposal
+	///      See {IGovernor-propose}.
+	////     Stores the last valid streamId for Linear and Dynamic streams
 	function propose(
 		address[] memory targets,
 		uint256[] memory values,
@@ -166,7 +170,8 @@ contract SablierGovernor is
 	) internal override(Governor, GovernorTimelockControl) {
 		super._execute(proposalId, targets, values, calldatas, descriptionHash);
 	}
-
+	/// @dev See {GovernorVotes}.
+	/// @dev Override the _getVotes function to include the votes from the streams
 	function _getVotes(
 		address account,
 		uint256 timepoint,
@@ -200,6 +205,7 @@ contract SablierGovernor is
 		return regularVotes + streamVotes;
 	}
 
+	/// @dev Calculate the votes from the streams
 	function _calculateStreamVotes(
 		StreamParams memory streamParam,
 		uint256 proposalId,
@@ -225,6 +231,7 @@ contract SablierGovernor is
 		return streamVotes;
 	}
 
+	/// @dev Check if the stream is valid and if the recipient and asset match the account and token
 	function _validateStream(
 		StreamParams memory streamParam,
 		uint256 proposalId,
@@ -266,6 +273,7 @@ contract SablierGovernor is
 		}
 	}
 
+	/// @dev Calculate the votes for a linear stream depending on the state
 	function _calculateLinearStreamVotes(
 		uint256 streamId,
 		LockupLinear.Stream memory stream
@@ -276,6 +284,7 @@ contract SablierGovernor is
 				: stream.amounts.deposited - stream.amounts.withdrawn;
 	}
 
+	/// @dev Calculate the votes for a dynamic stream depending on the state
 	function _calculateDynamicStreamVotes(
 		uint256 streamId,
 		LockupDynamic.Stream memory stream
@@ -286,6 +295,8 @@ contract SablierGovernor is
 				: stream.amounts.deposited - stream.amounts.withdrawn;
 	}
 
+	/// @dev See {GovernorCountingSimple}.
+	///      Override the _countVote function to mark the streams as used
 	function _countVote(
 		uint256 proposalId,
 		address account,
