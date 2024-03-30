@@ -5,12 +5,14 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
-contract MyToken is ERC20, ERC20Permit, ERC20Votes {
+contract ERC20Token is ERC20, ERC20Permit, ERC20Votes {
 	constructor() ERC20("MyToken", "MTK") ERC20Permit("MyToken") {}
 
 	// This is a helper function to mint tokens for tests
 	function mint(address to, uint256 amount) external {
 		_mint(to, amount);
+		// Activate voting power on mint
+		_delegate(to, to);
 	}
 
 	// The functions below are overrides required by Solidity.

@@ -10,6 +10,7 @@ import { GovernorTimelockControl, TimelockController } from "@openzeppelin/contr
 import { ISablierLinear } from "./interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "./interfaces/ISablierDynamic.sol";
 import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
+import "forge-std/console.sol";
 // TO-DO:
 // Refactor logic
 contract SablierGovernor is
@@ -66,12 +67,19 @@ contract SablierGovernor is
 			calldatas,
 			description
 		);
-		lastValidLinearStreamId[proposalId] =
-			i_sablierLinear.nextStreamId() -
-			1;
-		lastValidDynamicStreamId[proposalId] =
-			i_sablierDynamic.nextStreamId() -
-			1;
+
+		// adding checks if there are streams created
+		if (i_sablierLinear.nextStreamId() != 0) {
+			lastValidLinearStreamId[proposalId] =
+				i_sablierLinear.nextStreamId() -
+				1;
+		}
+		if (i_sablierDynamic.nextStreamId() != 0) {
+			lastValidDynamicStreamId[proposalId] =
+				i_sablierDynamic.nextStreamId() -
+				1;
+		}
+
 		return proposalId;
 	}
 
@@ -171,73 +179,81 @@ contract SablierGovernor is
 		override(Governor, GovernorVotes)
 		returns (uint256)
 	{
+		console.logBytes(params);
 		uint256 regularVotes = super._getVotes(account, timepoint, params);
 		uint256 streamVotes;
-
-		(StreamParams[] memory streams, uint256 proposalId) = abi.decode(
-			params,
-			(StreamParams[], uint256)
-		);
-		if (streams.length == 0) {
+		if (params.length == 0) {
+			console.log("entered params.length == 0");
 			streamVotes = 0;
 		} else {
-			for (uint256 i = 0; i < streams.length; i++) {
-				uint256 streamId = streams[i].streamID;
+			(StreamParams[] memory streams, uint256 proposalId) = abi.decode(
+				params,
+				(StreamParams[], uint256)
+			);
+			console.log("streams[0]", streams[0].streamID);
 
-				if (streams[i].streamType == StreamType.Linear) {
-					if (streamId > lastValidLinearStreamId[proposalId]) {
-						revert("Stream ID is invalid");
-					}
-					// @dev Reverts if `streamId` references a null stream.
-					LockupLinear.Stream memory stream = i_sablierLinear
-						.getStream(streamId);
+			if (streams.length == 0) {
+				streamVotes = 0;
+			} else {
+				for (uint256 i = 0; i < streams.length; i++) {
+					uint256 streamId = streams[i].streamID;
 
-					if (_linearStreamUsed[streamId]) {
-						revert("Stream already used");
-					}
+					if (streams[i].streamType == StreamType.Linear) {
+						if (streamId > lastValidLinearStreamId[proposalId]) {
+							revert("Stream ID is invalid");
+						}
+						// @dev Reverts if `streamId` references a null stream.
+						LockupLinear.Stream memory stream = i_sablierLinear
+							.getStream(streamId);
 
-					if (address(stream.asset) != address(token)) {
-						revert("Asset does not match token");
-					}
+						if (_linearStreamUsed[streamId]) {
+							revert("Stream already used");
+						}
 
-					if (i_sablierLinear.getRecipient(streamId) != account) {
-						revert("Recipient does not match account");
-					}
+						if (address(stream.asset) != address(token)) {
+							revert("Asset does not match token");
+						}
 
-					if (stream.wasCanceled) {
-						streamVotes += i_sablierLinear.withdrawableAmountOf(
-							streamId
-						);
+						if (i_sablierLinear.getRecipient(streamId) != account) {
+							revert("Recipient does not match account");
+						}
+
+						if (stream.wasCanceled) {
+							streamVotes += i_sablierLinear.withdrawableAmountOf(
+								streamId
+							);
+						} else {
+							streamVotes +=
+								stream.amounts.deposited -
+								stream.amounts.withdrawn;
+						}
 					} else {
-						streamVotes +=
-							stream.amounts.deposited -
-							stream.amounts.withdrawn;
-					}
-				} else {
-					// @dev Reverts if `streamId` references a null stream.
-					LockupDynamic.Stream memory stream = i_sablierDynamic
-						.getStream(streamId);
+						// @dev Reverts if `streamId` references a null stream.
+						LockupDynamic.Stream memory stream = i_sablierDynamic
+							.getStream(streamId);
 
-					if (_dynamicStreamUsed[streamId]) {
-						revert("Stream already used");
-					}
+						if (_dynamicStreamUsed[streamId]) {
+							revert("Stream already used");
+						}
 
-					if (address(stream.asset) != address(token)) {
-						revert("Asset does not match token");
-					}
+						if (address(stream.asset) != address(token)) {
+							revert("Asset does not match token");
+						}
 
-					if (i_sablierDynamic.getRecipient(streamId) != account) {
-						revert("Recipient does not match account");
-					}
+						if (
+							i_sablierDynamic.getRecipient(streamId) != account
+						) {
+							revert("Recipient does not match account");
+						}
 
-					if (stream.wasCanceled) {
-						streamVotes += i_sablierDynamic.withdrawableAmountOf(
-							streamId
-						);
-					} else {
-						streamVotes +=
-							stream.amounts.deposited -
-							stream.amounts.withdrawn;
+						if (stream.wasCanceled) {
+							streamVotes += i_sablierDynamic
+								.withdrawableAmountOf(streamId);
+						} else {
+							streamVotes +=
+								stream.amounts.deposited -
+								stream.amounts.withdrawn;
+						}
 					}
 				}
 			}

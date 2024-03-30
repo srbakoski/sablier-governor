@@ -29,4 +29,51 @@ interface ISablierDynamic {
 
 	/// @notice Counter for stream ids, used in the create functions.
 	function nextStreamId() external view returns (uint256);
+
+	/// @notice Creates a stream by setting the start time to `block.timestamp`, and the end time to the sum of
+	/// `block.timestamp` and all specified time deltas. The segment milestones are derived from these
+	/// deltas. The stream is funded by `msg.sender` and is wrapped in an ERC-721 NFT.
+	///
+	/// @dev Emits a {Transfer} and {CreateLockupDynamicStream} event.
+	///
+	/// Requirements:
+	/// - All requirements in {createWithMilestones} must be met for the calculated parameters.
+	///
+	/// @param params Struct encapsulating the function parameters, which are documented in {DataTypes}.
+	/// @return streamId The id of the newly created stream.
+	function createWithDeltas(
+		LockupDynamic.CreateWithDeltas calldata params
+	) external returns (uint256 streamId);
+
+	/// @notice Creates a stream with the provided segment milestones, implying the end time from the last milestone.
+	/// The stream is funded by `msg.sender` and is wrapped in an ERC-721 NFT.
+	///
+	/// @dev Emits a {Transfer} and {CreateLockupDynamicStream} event.
+	///
+	/// Notes:
+	/// - As long as the segment milestones are arranged in ascending order, it is not an error for some
+	/// of them to be in the past.
+	///
+	/// Requirements:
+	/// - Must not be delegate called.
+	/// - `params.totalAmount` must be greater than zero.
+	/// - If set, `params.broker.fee` must not be greater than `MAX_FEE`.
+	/// - `params.segments` must have at least one segment, but not more than `MAX_SEGMENT_COUNT`.
+	/// - `params.startTime` must be less than the first segment's milestone.
+	/// - The segment milestones must be arranged in ascending order.
+	/// - The last segment milestone (i.e. the stream's end time) must be in the future.
+	/// - The sum of the segment amounts must equal the deposit amount.
+	/// - `params.recipient` must not be the zero address.
+	/// - `msg.sender` must have allowed this contract to spend at least `params.totalAmount` assets.
+	///
+	/// @param params Struct encapsulating the function parameters, which are documented in {DataTypes}.
+	/// @return streamId The id of the newly created stream.
+	function createWithMilestones(
+		LockupDynamic.CreateWithMilestones calldata params
+	) external returns (uint256 streamId);
+
+	/// @param streamId The id of the stream to withdraw from.
+	/// @param to The address receiving the withdrawn assets.
+	/// @param amount The amount to withdraw, denoted in units of the asset's decimals.
+	function withdraw(uint256 streamId, address to, uint128 amount) external;
 }
