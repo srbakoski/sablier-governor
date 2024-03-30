@@ -171,7 +171,7 @@ contract SablierGovernor is
 		super._execute(proposalId, targets, values, calldatas, descriptionHash);
 	}
 	/// @dev See {GovernorVotes}.
-	/// @dev Override the _getVotes function to include the votes from the streams
+	///      Override the _getVotes function to include the votes from the streams
 	function _getVotes(
 		address account,
 		uint256 timepoint,

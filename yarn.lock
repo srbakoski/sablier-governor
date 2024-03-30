@@ -1542,6 +1542,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts@npm:4.9.2":
+  version: 4.9.2
+  resolution: "@openzeppelin/contracts@npm:4.9.2"
+  checksum: 0538b18fe222e5414a5a539c240b155e0bef2a23c5182fb8e137d71a0c390fe899160f2d55701f75b127f54cc61aee4375370acc832475f19829368ac65c1fc6
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts@npm:^4.8.1":
   version: 4.9.3
   resolution: "@openzeppelin/contracts@npm:4.9.3"
@@ -1701,6 +1708,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@prb/math@npm:4.0.2":
+  version: 4.0.2
+  resolution: "@prb/math@npm:4.0.2"
+  checksum: a55126d03c8a9be8d5b9a0274de40b80018b3bdf877e249f891e04c555983b30fa948e42b9846594387bcc271967368e85f2434fd39de1bac17bf3bf7d3eb0ab
+  languageName: node
+  linkType: hard
+
 "@rainbow-me/rainbowkit@npm:1.3.5":
   version: 1.3.5
   resolution: "@rainbow-me/rainbowkit@npm:1.3.5"
@@ -1735,6 +1749,18 @@ __metadata:
   version: 1.5.0
   resolution: "@rushstack/eslint-patch@npm:1.5.0"
   checksum: f21595f92ade631b5c5b2426962db727f79a7224a2c60e462779310bf1f2b592a6f59d280fa936001f564a4c7d40997ba80b5a32081fee061309ef2c56b7f4b5
+  languageName: node
+  linkType: hard
+
+"@sablier/v2-core@npm:^1.1.2":
+  version: 1.1.2
+  resolution: "@sablier/v2-core@npm:1.1.2"
+  dependencies:
+    "@openzeppelin/contracts": 4.9.2
+    "@prb/math": 4.0.2
+  peerDependencies:
+    "@prb/math": 4.0.x
+  checksum: 3d9160e1bbf070d4d8a501bf8bbace72322ef5830db005fa0956ed741beed4ef429d464f0094c1dd4694505bcde173482811f8bab617ea605cf37164eecadd43
   languageName: node
   linkType: hard
 
@@ -1837,6 +1863,7 @@ __metadata:
     "@nomicfoundation/hardhat-network-helpers": ^1.0.6
     "@nomicfoundation/hardhat-verify": ^2.0.3
     "@openzeppelin/contracts": ^4.8.1
+    "@sablier/v2-core": ^1.1.2
     "@typechain/ethers-v5": ^10.1.0
     "@typechain/ethers-v6": ^0.5.1
     "@typechain/hardhat": ^9.1.0
