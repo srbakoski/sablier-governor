@@ -73,4 +73,21 @@ interface ISablierLinear {
 	/// @param to The address receiving the withdrawn assets.
 	/// @param amount The amount to withdraw, denoted in units of the asset's decimals.
 	function withdraw(uint256 streamId, address to, uint128 amount) external;
+
+	/// @notice Cancels the stream and refunds any remaining assets to the sender.
+	///
+	/// @dev Emits a {Transfer}, {CancelLockupStream}, and {MetadataUpdate} event.
+	///
+	/// Notes:
+	/// - If there any assets left for the recipient to withdraw, the stream is marked as canceled. Otherwise, the
+	/// stream is marked as depleted.
+	/// - This function attempts to invoke a hook on the recipient, if the resolved address is a contract.
+	///
+	/// Requirements:
+	/// - Must not be delegate called.
+	/// - The stream must be warm and cancelable.
+	/// - `msg.sender` must be the stream's sender.
+	///
+	/// @param streamId The id of the stream to cancel.
+	function cancel(uint256 streamId) external;
 }

@@ -8,12 +8,9 @@ import { Timelock } from "../../contracts/Timelock.sol";
 import { SablierGovernor } from "../../contracts/SablierGovernor.sol";
 import { ud60x18 } from "@prb/math/src/UD60x18.sol";
 import { ud2x18 } from "@prb/math/src/UD2x18.sol";
-// import { ISablierV2LockupLinear } from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
-// import { ISablierV2LockupDynamic } from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 import { ISablierLinear } from "../../contracts/interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "../../contracts/interfaces/ISablierDynamic.sol";
 import { Broker, LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
-import "forge-std/console.sol";
 
 contract SablierGovernorTest is Test {
 	// Token decimals
@@ -199,7 +196,7 @@ contract SablierGovernorTest is Test {
 		);
 	}
 
-	function test_getVotingPower()
+	function test_getVotes()
 		external
 		createLinearStream
 		createDynamicStream
@@ -207,10 +204,13 @@ contract SablierGovernorTest is Test {
 	{
 		// createLinearStream creates stream with 1000 tokens inside of it
 		// createDynamicStream creates stream with 3000 tokens inside of it
-		uint256 streamsTotalAmount = 5000 * (10 ** DECIMALS);
+		// Additional 1000 tokens will be minted to the testAddress, which represents maxVotingPower of 5000 tokens
+		uint256 maxVotingPower = 5000 * (10 ** DECIMALS);
 
 		// we mint additional 1000 tokens to the testAddress
 		erc20Token.mint(testAddress, 1000 * (10 ** DECIMALS));
+		uint256 testAddressBalance = erc20Token.balanceOf(testAddress);
+
 		uint256 regularVotingPower = erc20Token.balanceOf(testAddress);
 		vm.roll(block.number + 2);
 
@@ -242,7 +242,7 @@ contract SablierGovernorTest is Test {
 			params
 		);
 
-		assertEq(streamsTotalAmount, votingPower);
+		assertEq(maxVotingPower, votingPower);
 
 		vm.warp(block.timestamp + 6 weeks);
 		vm.startPrank(testAddress);
@@ -263,10 +263,7 @@ contract SablierGovernorTest is Test {
 			params
 		);
 
-		assertEq(
-			streamsTotalAmount - withdrawableAmountAfterSixWeeks,
-			votingPower
-		);
+		assertEq(maxVotingPower - withdrawableAmountAfterSixWeeks, votingPower);
 
 		// end of linear stream
 		vm.warp(block.timestamp + 51 weeks);
@@ -287,11 +284,107 @@ contract SablierGovernorTest is Test {
 		);
 
 		assertEq(
-			streamsTotalAmount -
+			maxVotingPower -
 				(withdrawableAmountAfterSixWeeks + withdrawableAmountAtTheEnd),
 			votingPower
 		);
 
+		// withdrawable amount from dynamic stream
+		withdrawableAmountAtTheEnd = i_sablierDynamic.withdrawableAmountOf(
+			latestDynamicStreamId
+		);
+		i_sablierDynamic.withdraw(
+			latestDynamicStreamId,
+			testAddress,
+			withdrawableAmountAtTheEnd
+		);
+
+		votingPower = sablierGovernor.getVotesWithParams(
+			testAddress,
+			block.number - 1,
+			params
+		);
+
+		assertEq(testAddressBalance, votingPower);
+
 		vm.stopPrank();
+	}
+
+	function test_getVotesWhenStreamIsCanceled()
+		external
+		createLinearStream
+		createProposal
+	{
+		// createLinearStream creates stream with 1000 tokens inside of it
+		// Additional 1000 tokens will be minted to the testAddress, which represents maxVotingPower of 2000 tokens
+		uint256 maxVotingPower = 2000 * (10 ** DECIMALS); // i change nameOfThis
+
+		// we mint additional 1000 tokens to the testAddress
+		erc20Token.mint(testAddress, 1000 * (10 ** DECIMALS));
+		uint256 testAddressBalance = erc20Token.balanceOf(testAddress);
+
+		uint256 regularVotingPower = erc20Token.balanceOf(testAddress);
+		vm.roll(block.number + 2);
+
+		// voting power without streams
+		uint256 votingPower = sablierGovernor.getVotes(
+			testAddress,
+			block.number - 1
+		);
+		assertEq(regularVotingPower, votingPower);
+
+		// create params for getVotesWithParams
+		uint256 proposalId = latestProposalId;
+		SablierGovernor.StreamParams[]
+			memory streamParams = new SablierGovernor.StreamParams[](1);
+		streamParams[0] = SablierGovernor.StreamParams(
+			latestLinearStreamId,
+			SablierGovernor.StreamType.Linear
+		);
+
+		bytes memory params = abi.encode(streamParams, proposalId);
+
+		votingPower = sablierGovernor.getVotesWithParams(
+			testAddress,
+			block.number - 1,
+			params
+		);
+
+		assertEq(maxVotingPower, votingPower);
+
+		vm.warp(block.timestamp + 6 weeks);
+		vm.startPrank(testAddress);
+
+		// withdrawable amount from linear stream
+		uint128 withdrawableAmountAfterSixWeeks = i_sablierLinear
+			.withdrawableAmountOf(latestLinearStreamId);
+
+		i_sablierLinear.withdraw(
+			latestLinearStreamId,
+			testAddress,
+			withdrawableAmountAfterSixWeeks
+		);
+
+		votingPower = sablierGovernor.getVotesWithParams(
+			testAddress,
+			block.number - 1,
+			params
+		);
+
+		assertEq(maxVotingPower - withdrawableAmountAfterSixWeeks, votingPower);
+
+		vm.stopPrank();
+
+		// cancel the stream
+		vm.prank(i_deployerAddress);
+		i_sablierLinear.cancel(latestLinearStreamId);
+
+		votingPower = sablierGovernor.getVotesWithParams(
+			testAddress,
+			block.number - 1,
+			params
+		);
+
+		assertEq(testAddressBalance, votingPower);
 	}
 }

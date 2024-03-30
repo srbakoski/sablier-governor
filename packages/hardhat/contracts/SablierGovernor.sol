@@ -10,9 +10,9 @@ import { GovernorTimelockControl, TimelockController } from "@openzeppelin/contr
 import { ISablierLinear } from "./interfaces/ISablierLinear.sol";
 import { ISablierDynamic } from "./interfaces/ISablierDynamic.sol";
 import { LockupLinear, LockupDynamic } from "@sablier/v2-core/src/types/DataTypes.sol";
-import "forge-std/console.sol";
 // TO-DO:
-// Refactor logic
+// NatSpec
+// Documentation
 contract SablierGovernor is
 	Governor,
 	GovernorSettings,
@@ -167,7 +167,6 @@ contract SablierGovernor is
 		super._execute(proposalId, targets, values, calldatas, descriptionHash);
 	}
 
-	// _getVotes is overriden so it can include votes from Sablier streams
 	function _getVotes(
 		address account,
 		uint256 timepoint,
@@ -179,87 +178,112 @@ contract SablierGovernor is
 		override(Governor, GovernorVotes)
 		returns (uint256)
 	{
-		console.logBytes(params);
 		uint256 regularVotes = super._getVotes(account, timepoint, params);
-		uint256 streamVotes;
-		if (params.length == 0) {
-			console.log("entered params.length == 0");
-			streamVotes = 0;
-		} else {
+		uint256 streamVotes = 0;
+
+		if (params.length > 0) {
 			(StreamParams[] memory streams, uint256 proposalId) = abi.decode(
 				params,
 				(StreamParams[], uint256)
 			);
-			console.log("streams[0]", streams[0].streamID);
-
-			if (streams.length == 0) {
-				streamVotes = 0;
-			} else {
-				for (uint256 i = 0; i < streams.length; i++) {
-					uint256 streamId = streams[i].streamID;
-
-					if (streams[i].streamType == StreamType.Linear) {
-						if (streamId > lastValidLinearStreamId[proposalId]) {
-							revert("Stream ID is invalid");
-						}
-						// @dev Reverts if `streamId` references a null stream.
-						LockupLinear.Stream memory stream = i_sablierLinear
-							.getStream(streamId);
-
-						if (_linearStreamUsed[streamId]) {
-							revert("Stream already used");
-						}
-
-						if (address(stream.asset) != address(token)) {
-							revert("Asset does not match token");
-						}
-
-						if (i_sablierLinear.getRecipient(streamId) != account) {
-							revert("Recipient does not match account");
-						}
-
-						if (stream.wasCanceled) {
-							streamVotes += i_sablierLinear.withdrawableAmountOf(
-								streamId
-							);
-						} else {
-							streamVotes +=
-								stream.amounts.deposited -
-								stream.amounts.withdrawn;
-						}
-					} else {
-						// @dev Reverts if `streamId` references a null stream.
-						LockupDynamic.Stream memory stream = i_sablierDynamic
-							.getStream(streamId);
-
-						if (_dynamicStreamUsed[streamId]) {
-							revert("Stream already used");
-						}
-
-						if (address(stream.asset) != address(token)) {
-							revert("Asset does not match token");
-						}
-
-						if (
-							i_sablierDynamic.getRecipient(streamId) != account
-						) {
-							revert("Recipient does not match account");
-						}
-
-						if (stream.wasCanceled) {
-							streamVotes += i_sablierDynamic
-								.withdrawableAmountOf(streamId);
-						} else {
-							streamVotes +=
-								stream.amounts.deposited -
-								stream.amounts.withdrawn;
-						}
-					}
-				}
+			for (uint256 i = 0; i < streams.length; i++) {
+				bool isLinear = streams[i].streamType == StreamType.Linear;
+				streamVotes += _calculateStreamVotes(
+					streams[i],
+					proposalId,
+					account,
+					isLinear
+				);
 			}
 		}
 
 		return regularVotes + streamVotes;
+	}
+
+	function _calculateStreamVotes(
+		StreamParams memory streamParam,
+		uint256 proposalId,
+		address account,
+		bool isLinear
+	) private view returns (uint256) {
+		uint256 streamVotes = 0;
+		uint256 streamId = streamParam.streamID;
+		_validateStream(streamParam, proposalId, account, isLinear);
+
+		if (isLinear) {
+			LockupLinear.Stream memory stream = i_sablierLinear.getStream(
+				streamId
+			);
+			streamVotes = _calculateLinearStreamVotes(streamId, stream);
+		} else {
+			LockupDynamic.Stream memory stream = i_sablierDynamic.getStream(
+				streamId
+			);
+			streamVotes = _calculateDynamicStreamVotes(streamId, stream);
+		}
+
+		return streamVotes;
+	}
+
+	function _validateStream(
+		StreamParams memory streamParam,
+		uint256 proposalId,
+		address account,
+		bool isLinear
+	) private view {
+		uint256 streamId = streamParam.streamID;
+
+		// Validate the stream ID
+		if (isLinear) {
+			if (streamId > lastValidLinearStreamId[proposalId]) {
+				revert("Linear stream ID is invalid");
+			}
+			if (_linearStreamUsed[streamId]) {
+				revert("Linear stream already used");
+			}
+		} else {
+			if (streamId > lastValidDynamicStreamId[proposalId]) {
+				revert("Dynamic stream ID is invalid");
+			}
+			if (_dynamicStreamUsed[streamId]) {
+				revert("Dynamic stream already used");
+			}
+		}
+
+		// Validate the recipient and asset
+		address streamRecipient = isLinear
+			? i_sablierLinear.getRecipient(streamId)
+			: i_sablierDynamic.getRecipient(streamId);
+		if (streamRecipient != account) {
+			revert("Recipient does not match account");
+		}
+
+		address assetAddress = isLinear
+			? address(i_sablierLinear.getStream(streamId).asset)
+			: address(i_sablierDynamic.getStream(streamId).asset);
+		if (assetAddress != address(token)) {
+			revert("Asset does not match token");
+		}
+	}
+
+	function _calculateLinearStreamVotes(
+		uint256 streamId,
+		LockupLinear.Stream memory stream
+	) private view returns (uint256) {
+		return
+			stream.wasCanceled
+				? i_sablierLinear.withdrawableAmountOf(streamId)
+				: stream.amounts.deposited - stream.amounts.withdrawn;
+	}
+
+	function _calculateDynamicStreamVotes(
+		uint256 streamId,
+		LockupDynamic.Stream memory stream
+	) private view returns (uint256) {
+		return
+			stream.wasCanceled
+				? i_sablierDynamic.withdrawableAmountOf(streamId)
+				: stream.amounts.deposited - stream.amounts.withdrawn;
 	}
 
 	function _countVote(
