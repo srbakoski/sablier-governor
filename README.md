@@ -22,8 +22,6 @@ To get started with Sablier Governor, follow the steps below:
 git clone git@github.com:srbakoski/sablier-governor.git
 cd sablier-governor
 yarn install
-cd packages/hardhat
-yarn install
 ```
 
 2. On a second terminal, deploy the contract:
