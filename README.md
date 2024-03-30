@@ -22,7 +22,7 @@ To get started with Sablier Governor, follow the steps below:
 git clone git@github.com:srbakoski/sablier-governor.git
 cd sablier-governor
 yarn install
-cd sablier-governor/packages/hardhat
+cd packages/hardhat
 yarn install
 ```
 
